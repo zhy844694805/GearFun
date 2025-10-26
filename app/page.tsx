@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ShoppingCart, User, Search } from 'lucide-react';
+import { ShoppingCart, User, Search, Home, Grid, UserCircle } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -77,23 +77,26 @@ export default function HomePage() {
       </section>
 
       {/* 底部导航 - 移动端 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t md:hidden z-40">
         <div className="grid grid-cols-4 h-16">
           {[
-            { name: '首页', icon: '🏠', href: '/' },
-            { name: '分类', icon: '📂', href: '/categories' },
-            { name: '购物车', icon: '🛒', href: '/cart' },
-            { name: '我的', icon: '👤', href: '/profile' },
-          ].map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className="flex flex-col items-center justify-center hover:bg-gray-50"
-            >
-              <span className="text-2xl">{item.icon}</span>
-              <span className="text-xs mt-1">{item.name}</span>
-            </Link>
-          ))}
+            { name: '首页', icon: Home, href: '/' },
+            { name: '分类', icon: Grid, href: '/categories' },
+            { name: '购物车', icon: ShoppingCart, href: '/cart' },
+            { name: '我的', icon: UserCircle, href: '/profile' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className="flex flex-col items-center justify-center hover:bg-gray-50"
+              >
+                <Icon size={24} />
+                <span className="text-xs mt-1">{item.name}</span>
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </div>
