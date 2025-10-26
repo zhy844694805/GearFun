@@ -1,0 +1,280 @@
+// Prisma Schema for 星趣铺
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id            String        @id @default(cuid())
+  phone         String?       @unique
+  email         String?       @unique
+  name          String?
+  avatar        String?
+  password      String?
+  role          UserRole      @default(USER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // 关联
+  addresses     Address[]
+  orders        Order[]
+  reviews       Review[]
+  cartItems     Cart[]
+  userCoupons   UserCoupon[]
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// 分类表
+model Category {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  icon        String?
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // 关联
+  products    Product[]
+}
+
+// 商品表
+model Product {
+  id              String          @id @default(cuid())
+  title           String
+  description     String?
+  price           Float
+  originalPrice   Float?          // 原价（用于显示折扣）
+  stock           Int             @default(0)
+  sold            Int             @default(0)
+  categoryId      String
+  status          ProductStatus   @default(ACTIVE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // 关联
+  category        Category        @relation(fields: [categoryId], references: [id])
+  images          ProductImage[]
+  cartItems       Cart[]
+  orderItems      OrderItem[]
+  reviews         Review[]
+  specifications  Specification[]
+}
+
+enum ProductStatus {
+  ACTIVE    // 上架
+  INACTIVE  // 下架
+  SOLDOUT   // 售罄
+}
+
+// 商品图片表
+model ProductImage {
+  id          String    @id @default(cuid())
+  productId   String
+  url         String
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  // 关联
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// 商品规格表（颜色、尺寸等）
+model Specification {
+  id          String    @id @default(cuid())
+  productId   String
+  name        String    // 如：颜色、尺寸
+  value       String    // 如：红色、L
+  priceAdjust Float     @default(0) // 价格调整
+  stock       Int       @default(0)
+
+  // 关联
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// 购物车表
+model Cart {
+  id          String    @id @default(cuid())
+  userId      String
+  productId   String
+  quantity    Int       @default(1)
+  specs       String?   // JSON格式存储选择的规格
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // 关联
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId, specs])
+}
+
+// 收货地址表
+model Address {
+  id          String    @id @default(cuid())
+  userId      String
+  receiverName String
+  phone       String
+  province    String
+  city        String
+  district    String
+  detail      String
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // 关联
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+}
+
+// 订单表
+model Order {
+  id              String        @id @default(cuid())
+  orderNo         String        @unique
+  userId          String
+  addressId       String
+  totalAmount     Float
+  discountAmount  Float         @default(0)
+  finalAmount     Float
+  status          OrderStatus   @default(PENDING)
+  paymentMethod   String?
+  paymentTime     DateTime?
+  shippingNo      String?       // 物流单号
+  shippingTime    DateTime?     // 发货时间
+  completedTime   DateTime?     // 完成时间
+  remark          String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // 关联
+  user            User          @relation(fields: [userId], references: [id])
+  address         Address       @relation(fields: [addressId], references: [id])
+  items           OrderItem[]
+  usedCoupon      UserCoupon?
+}
+
+enum OrderStatus {
+  PENDING     // 待付款
+  PAID        // 已付款
+  SHIPPING    // 已发货
+  COMPLETED   // 已完成
+  CANCELLED   // 已取消
+  REFUNDED    // 已退款
+}
+
+// 订单商品表
+model OrderItem {
+  id          String    @id @default(cuid())
+  orderId     String
+  productId   String
+  title       String    // 冗余字段，防止商品删除后无法查看
+  image       String?
+  price       Float
+  quantity    Int
+  specs       String?   // JSON格式
+  createdAt   DateTime  @default(now())
+
+  // 关联
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+}
+
+// 商品评价表
+model Review {
+  id          String        @id @default(cuid())
+  userId      String
+  productId   String
+  rating      Int           // 1-5星
+  content     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // 关联
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  images      ReviewImage[]
+
+  @@unique([userId, productId]) // 每个用户每个商品只能评价一次
+}
+
+// 评价图片表
+model ReviewImage {
+  id          String    @id @default(cuid())
+  reviewId    String
+  url         String
+  createdAt   DateTime  @default(now())
+
+  // 关联
+  review      Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+// 优惠券模板表
+model Coupon {
+  id              String        @id @default(cuid())
+  name            String
+  code            String?       @unique // 优惠码（可选，用于用户输入兑换）
+  type            CouponType
+  discountValue   Float         // 折扣值（满减金额或折扣百分比）
+  minAmount       Float         @default(0) // 最低消费金额
+  maxDiscount     Float?        // 最大折扣金额（用于折扣券）
+  totalQuantity   Int           // 总发放数量
+  usedQuantity    Int           @default(0)
+  startTime       DateTime
+  endTime         DateTime
+  description     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // 关联
+  userCoupons     UserCoupon[]
+}
+
+enum CouponType {
+  FIXED     // 满减（如满100减10）
+  PERCENT   // 折扣（如9折）
+}
+
+// 用户优惠券表
+model UserCoupon {
+  id          String            @id @default(cuid())
+  userId      String
+  couponId    String
+  orderId     String?           @unique // 使用该优惠券的订单
+  status      UserCouponStatus  @default(UNUSED)
+  receivedAt  DateTime          @default(now())
+  usedAt      DateTime?
+
+  // 关联
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coupon      Coupon            @relation(fields: [couponId], references: [id])
+  order       Order?            @relation(fields: [orderId], references: [id])
+}
+
+enum UserCouponStatus {
+  UNUSED    // 未使用
+  USED      // 已使用
+  EXPIRED   // 已过期
+}
+
+// 轮播图表
+model Banner {
+  id          String    @id @default(cuid())
+  title       String
+  image       String
+  link        String?   // 点击跳转链接
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
