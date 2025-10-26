@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,7 @@ model User {
   name          String?
   avatar        String?
   password      String?
-  role          UserRole      @default(USER)
+  role          String        @default("USER") // USER, ADMIN
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -29,10 +29,6 @@ model User {
   userCoupons   UserCoupon[]
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
 
 // 分类表
 model Category {
@@ -58,7 +54,7 @@ model Product {
   stock           Int             @default(0)
   sold            Int             @default(0)
   categoryId      String
-  status          ProductStatus   @default(ACTIVE)
+  status          String          @default("ACTIVE") // ACTIVE, INACTIVE, SOLDOUT
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -71,11 +67,6 @@ model Product {
   specifications  Specification[]
 }
 
-enum ProductStatus {
-  ACTIVE    // 上架
-  INACTIVE  // 下架
-  SOLDOUT   // 售罄
-}
 
 // 商品图片表
 model ProductImage {
@@ -147,7 +138,7 @@ model Order {
   totalAmount     Float
   discountAmount  Float         @default(0)
   finalAmount     Float
-  status          OrderStatus   @default(PENDING)
+  status          String        @default("PENDING") // PENDING, PAID, SHIPPING, COMPLETED, CANCELLED, REFUNDED
   paymentMethod   String?
   paymentTime     DateTime?
   shippingNo      String?       // 物流单号
@@ -164,14 +155,6 @@ model Order {
   usedCoupon      UserCoupon?
 }
 
-enum OrderStatus {
-  PENDING     // 待付款
-  PAID        // 已付款
-  SHIPPING    // 已发货
-  COMPLETED   // 已完成
-  CANCELLED   // 已取消
-  REFUNDED    // 已退款
-}
 
 // 订单商品表
 model OrderItem {
@@ -224,7 +207,7 @@ model Coupon {
   id              String        @id @default(cuid())
   name            String
   code            String?       @unique // 优惠码（可选，用于用户输入兑换）
-  type            CouponType
+  type            String        // FIXED, PERCENT
   discountValue   Float         // 折扣值（满减金额或折扣百分比）
   minAmount       Float         @default(0) // 最低消费金额
   maxDiscount     Float?        // 最大折扣金额（用于折扣券）
@@ -240,10 +223,6 @@ model Coupon {
   userCoupons     UserCoupon[]
 }
 
-enum CouponType {
-  FIXED     // 满减（如满100减10）
-  PERCENT   // 折扣（如9折）
-}
 
 // 用户优惠券表
 model UserCoupon {
@@ -251,7 +230,7 @@ model UserCoupon {
   userId      String
   couponId    String
   orderId     String?           @unique // 使用该优惠券的订单
-  status      UserCouponStatus  @default(UNUSED)
+  status      String            @default("UNUSED") // UNUSED, USED, EXPIRED
   receivedAt  DateTime          @default(now())
   usedAt      DateTime?
 
@@ -261,11 +240,6 @@ model UserCoupon {
   order       Order?            @relation(fields: [orderId], references: [id])
 }
 
-enum UserCouponStatus {
-  UNUSED    // 未使用
-  USED      // 已使用
-  EXPIRED   // 已过期
-}
 
 // 轮播图表
 model Banner {

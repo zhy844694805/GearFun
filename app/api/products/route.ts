@@ -60,21 +60,37 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { title, description, price, originalPrice, stock, categoryId, images } = body;
+    const { title, description, price, originalPrice, stock, categoryId, status, images, specifications } = body;
 
     // TODO: 添加管理员权限验证
+
+    // 验证必填字段
+    if (!title || !price || !categoryId) {
+      return NextResponse.json(
+        { error: '缺少必填字段' },
+        { status: 400 }
+      );
+    }
+
+    if (!images || images.length === 0) {
+      return NextResponse.json(
+        { error: '请至少上传一张商品图片' },
+        { status: 400 }
+      );
+    }
 
     const product = await prisma.product.create({
       data: {
         title,
         description,
-        price,
-        originalPrice,
-        stock,
+        price: parseFloat(price),
+        originalPrice: originalPrice ? parseFloat(originalPrice) : null,
+        stock: parseInt(stock) || 0,
+        status: status || 'ACTIVE',
         categoryId,
         images: {
-          create: images?.map((url: string, index: number) => ({
-            url,
+          create: images?.map((img: { url: string; isPrimary?: boolean }, index: number) => ({
+            url: img.url,
             sortOrder: index,
           })) || [],
         },

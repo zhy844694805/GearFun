@@ -2,13 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Upload, X, Plus } from 'lucide-react';
+import { ArrowLeft, X, Plus } from 'lucide-react';
 import Link from 'next/link';
-
-interface ProductImage {
-  id: string;
-  url: string;
-}
+import ImageUpload from '@/components/ImageUpload';
 
 interface Specification {
   id: string;
@@ -31,7 +27,7 @@ export default function NewProductPage() {
     status: 'ACTIVE',
   });
 
-  const [images, setImages] = useState<ProductImage[]>([]);
+  const [images, setImages] = useState<string[]>([]);
   const [specifications, setSpecifications] = useState<Specification[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -39,16 +35,6 @@ export default function NewProductPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddImage = () => {
-    const url = prompt('请输入图片URL（实际项目中应该使用图片上传组件）');
-    if (url) {
-      setImages(prev => [...prev, { id: Date.now().toString(), url }]);
-    }
-  };
-
-  const handleRemoveImage = (id: string) => {
-    setImages(prev => prev.filter(img => img.id !== id));
-  };
 
   const handleAddSpecification = () => {
     setSpecifications(prev => [
@@ -89,18 +75,35 @@ export default function NewProductPage() {
       return;
     }
 
-    // TODO: 调用API创建商品
-    console.log('提交商品数据:', {
-      ...formData,
-      price: parseFloat(formData.price),
-      originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : null,
-      stock: parseInt(formData.stock) || 0,
-      images: images.map(img => img.url),
-      specifications,
-    });
+    try {
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          price: parseFloat(formData.price),
+          originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : null,
+          stock: parseInt(formData.stock) || 0,
+          images: images.map((url, index) => ({
+            url,
+            isPrimary: index === 0,
+          })),
+          specifications,
+        }),
+      });
 
-    alert('商品创建成功！');
-    router.push('/admin/products');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '创建商品失败');
+      }
+
+      alert('商品创建成功！');
+      router.push('/admin/products');
+    } catch (error: any) {
+      alert(error.message || '创建商品失败，请重试');
+    }
   };
 
   return (
@@ -233,43 +236,10 @@ export default function NewProductPage() {
         {/* 商品图片 */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h3 className="font-semibold mb-4">
-            商品图片 <span className="text-sm text-gray-500">(至少1张，建议3-5张)</span>
+            商品图片 <span className="text-sm text-gray-500 font-normal">(至少1张，建议3-5张)</span>
           </h3>
 
-          <div className="grid grid-cols-5 gap-4">
-            {images.map((image, index) => (
-              <div key={image.id} className="relative aspect-square">
-                <img
-                  src={image.url}
-                  alt={`商品图片 ${index + 1}`}
-                  className="w-full h-full object-cover rounded-lg border"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveImage(image.id)}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                >
-                  <X size={16} />
-                </button>
-                {index === 0 && (
-                  <span className="absolute bottom-2 left-2 bg-primary-600 text-white text-xs px-2 py-1 rounded">
-                    主图
-                  </span>
-                )}
-              </div>
-            ))}
-
-            {images.length < 5 && (
-              <button
-                type="button"
-                onClick={handleAddImage}
-                className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-primary-600 hover:text-primary-600 transition"
-              >
-                <Upload size={32} />
-                <span className="text-sm mt-2">上传图片</span>
-              </button>
-            )}
-          </div>
+          <ImageUpload value={images} onChange={setImages} maxImages={5} />
         </div>
 
         {/* 商品规格 */}
