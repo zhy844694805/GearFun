@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-星趣铺 is a mobile-first e-commerce platform built with Next.js 14 (App Router), selling automotive accessories, computer peripherals, figurines, and decorative items. The codebase is fully TypeScript with Prisma ORM for PostgreSQL database access.
+星趣铺 (GearFun) is a mobile-first e-commerce platform built with Next.js 14 (App Router), selling automotive accessories, computer peripherals, figurines, and decorative items. The codebase is fully TypeScript with Prisma ORM using SQLite for development. Primary color theme is pink/rose (#e11d48).
 
 ## Essential Commands
 
@@ -18,12 +18,13 @@ npm run lint         # Run ESLint
 
 ### Database Operations
 ```bash
-npm run db:generate  # Generate Prisma Client (run after schema changes)
-npm run db:push      # Push schema changes to database (dev only)
+npm run db:generate  # Generate Prisma Client (REQUIRED after schema changes)
+npm run db:push      # Push schema to SQLite database
 npm run db:studio    # Open Prisma Studio (visual database browser)
+npm run db:seed      # Seed database with 4 categories and sample products
 ```
 
-**Important**: After modifying `prisma/schema.prisma`, always run `npm run db:generate` before using the updated models in code.
+**Important**: After modifying `prisma/schema.prisma`, always run `npm run db:generate` and restart the dev server.
 
 ## Architecture Overview
 
@@ -45,17 +46,23 @@ This separation allows completely different UX patterns for customers vs adminis
 
 ### Data Flow Pattern
 
-**Client Components → API Routes → Prisma → PostgreSQL**
+**Client Components → API Routes → Prisma → SQLite**
 
 All database operations go through API routes in `app/api/`:
-- `app/api/products/route.ts` - Product CRUD
+- `app/api/products/route.ts` - Product CRUD with pagination
 - `app/api/orders/route.ts` - Order creation with coupon logic
 - `app/api/cart/route.ts` - Cart management
 - `app/api/cart/[id]/route.ts` - Individual cart item operations
+- `app/api/upload/route.ts` - Image upload (POST) and deletion (DELETE)
 
 API routes use the singleton Prisma client from `lib/prisma.ts`. Never instantiate Prisma directly in components.
 
 ### Database Schema Architecture
+
+**SQLite-specific constraints**:
+- No enum types - uses String fields with comments for valid values
+- Example: `status String @default("ACTIVE") // ACTIVE, INACTIVE, SOLDOUT`
+- Key field names: `sold` (not `sales`), `slug` (required for Category)
 
 Key relationships to understand:
 
@@ -63,9 +70,10 @@ Key relationships to understand:
 - **Cart**: Unique constraint on `(userId, productId, specs)` to prevent duplicates
 - **Reviews**: Unique constraint ensures one review per user per product
 - **UserCoupon**: Tracks coupon instances, links to Order when used
-- **Product**: Has many-to-many with images/specs, soft delete via `status` enum
+- **Product**: Has many-to-many with images/specs, soft delete via `status` field
+- **ProductImage**: Cascading delete when product is deleted, ordered by `sortOrder`
 
-The schema uses enums extensively (`UserRole`, `ProductStatus`, `OrderStatus`, `CouponType`, `UserCouponStatus`) - check `prisma/schema.prisma` for valid values.
+Check `prisma/schema.prisma` for field documentation and valid string literal values.
 
 ## Critical Implementation Details
 
@@ -81,13 +89,27 @@ Currently uses hardcoded `'user-id-placeholder'` in API routes. NextAuth.js is c
 
 Most pages use local `useState` for now. The `zustand` package is installed but not yet integrated. For shopping cart persistence, implement a Zustand store with localStorage sync.
 
-### Image Handling
+### Image Upload System (✅ Implemented)
 
-Product images use URL strings stored in database. There's no actual upload implementation yet - the "upload" button in admin prompts for URLs. To implement real uploads:
+Images are stored locally in `public/uploads/` with naming pattern: `{timestamp}-{randomString}.{ext}`
 
-1. Add file upload API route
-2. Integrate cloud storage (Cloudinary/Aliyun OSS as noted in .env.example)
-3. Update `app/admin/products/new/page.tsx` upload handler
+**Upload API** (`/api/upload`):
+- **POST**: Accepts multipart form data, validates file type/size, returns `{ url, filename, size, type }`
+- **DELETE**: Query param `?filename={name}` to remove file from filesystem
+- Supports: JPG, PNG, WEBP, GIF (max 5MB per file)
+
+**ImageUpload Component** (`components/ImageUpload.tsx`):
+- Drag-and-drop or click to upload (max 5 images)
+- Real-time preview with delete buttons
+- First image automatically marked as primary
+- Used in `app/admin/products/new/page.tsx`
+
+**API integration format**:
+```typescript
+images: [{ url: string, isPrimary?: boolean }]
+```
+
+For production, migrate to cloud storage (Cloudinary/Aliyun OSS) by replacing `/api/upload` implementation.
 
 ### Price Calculations
 
@@ -146,20 +168,52 @@ For performance, only include needed relations and use `take` to limit array siz
 ## Environment Setup
 
 Required `.env` variables:
-- `DATABASE_URL` - PostgreSQL connection string
+- `DATABASE_URL` - SQLite database path (default: `"file:./dev.db"`)
 - `NEXTAUTH_SECRET` - Random secret for NextAuth (not yet implemented)
 - `NEXTAUTH_URL` - App URL (default: http://localhost:3000)
+- `NEXT_PUBLIC_UPLOAD_DIR` - Upload directory path (default: `"/uploads"`)
 
 Optional (for future features):
 - WeChat/Alipay payment credentials
 - Cloud storage credentials
 
+## Current Implementation Status
+
+**✅ Completed Features**:
+- Image upload system with local storage
+- Product listing page with pagination, category filtering, price/sales sorting
+- Admin product creation with multi-image upload
+- Database seeding with 4 categories and sample products
+- Custom Tailwind utility classes for consistent styling
+
+**🚧 Placeholders / Not Yet Implemented**:
+- Authentication: NextAuth.js installed but not configured
+- Payment integration: No processor connected
+- Product specifications: Schema exists, not fully integrated in UI
+- Search functionality: Search button exists but not functional
+- User registration/login: UI only, no backend
+
+**⚠️ Known Discrepancies**:
+- README mentions PostgreSQL, actual implementation uses SQLite
+- Some UI pages reference features not yet in API (e.g., product edit)
+
+## Database Seeding
+
+Default categories created by `npm run db:seed`:
+- `cat1`: 汽车用品 (car-accessories)
+- `cat2`: 电脑配件 (computer-parts)
+- `cat3`: 手办周边 (figures)
+- `cat4`: 挂饰装饰 (decorations)
+
+Use these category IDs when testing product creation.
+
 ## Deployment Notes
 
-- **Database**: Use Supabase, Railway, or Neon for PostgreSQL hosting
+- **Database**: Currently SQLite (dev.db) - migrate to PostgreSQL/Supabase for production
 - **Platform**: Vercel recommended (zero-config Next.js deployment)
+- **Images**: Migrate `public/uploads/` to cloud storage before production
 - Before deploying: Set all environment variables in platform dashboard
-- After deploying: Run `npm run db:push` to initialize database schema
+- After deploying: Run `npm run db:push` then `npm run db:seed` to initialize database
 
 ## Mobile-First Considerations
 
@@ -169,3 +223,14 @@ All storefront pages are built mobile-first with responsive breakpoints:
 - Desktop: `lg:` prefix (1024px+)
 
 The bottom navigation (`app/(shop)/layout.tsx`) is hidden on desktop (`md:hidden`). Test all UI changes on mobile viewport first.
+
+## Important File Locations
+
+- **Prisma singleton**: `lib/prisma.ts` (always import from here)
+- **Utility functions**: `lib/utils.ts` (formatPrice, formatDate, generateOrderNo, calcDiscountPercent)
+- **Image upload component**: `components/ImageUpload.tsx`
+- **Image upload API**: `app/api/upload/route.ts`
+- **Product API**: `app/api/products/route.ts`
+- **Database schema**: `prisma/schema.prisma`
+- **Database file**: `prisma/dev.db` (SQLite, gitignored)
+- **Seed data**: `prisma/seed.ts`
