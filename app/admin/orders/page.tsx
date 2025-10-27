@@ -109,7 +109,7 @@ export default function OrdersPage() {
                   {Math.floor(Math.random() * 3) + 1} 件
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
-                  ¥{(Math.random() * 500 + 100).toFixed(2)}
+                  €{(Math.random() * 500 + 100).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs rounded-full ${statusColors[order.status]}`}>

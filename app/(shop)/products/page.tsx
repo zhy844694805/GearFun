@@ -249,11 +249,11 @@ export default function ProductsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-primary-600 font-bold text-lg">
-                      ¥{product.price.toFixed(2)}
+                      €{product.price.toFixed(2)}
                     </span>
                     {product.originalPrice && product.originalPrice > product.price && (
                       <span className="text-gray-400 text-sm line-through ml-2">
-                        ¥{product.originalPrice.toFixed(2)}
+                        €{product.originalPrice.toFixed(2)}
                       </span>
                     )}
                   </div>

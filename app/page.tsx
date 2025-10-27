@@ -67,7 +67,7 @@ export default function HomePage() {
               <div className="p-4">
                 <h3 className="font-semibold mb-2">商品标题</h3>
                 <div className="flex items-center justify-between">
-                  <span className="text-primary-600 font-bold">¥99.00</span>
+                  <span className="text-primary-600 font-bold">€99.00</span>
                   <span className="text-gray-500 text-sm">已售100+</span>
                 </div>
               </div>

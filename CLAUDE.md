@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-星趣铺 (GearFun) is a mobile-first e-commerce platform built with Next.js 14 (App Router), selling automotive accessories, computer peripherals, figurines, and decorative items. The codebase is fully TypeScript with Prisma ORM using SQLite for development. Primary color theme is pink/rose (#e11d48).
+星趣铺 (GearFun) is a mobile-first e-commerce platform built with Next.js 14 (App Router), selling automotive accessories, computer peripherals, figurines, and decorative items. The codebase is fully TypeScript with Prisma ORM using SQLite for development. Primary color theme is pink/rose (#e11d48). **Currency**: Euro (€) is used throughout the application.
 
 ## Essential Commands
 
@@ -49,10 +49,14 @@ This separation allows completely different UX patterns for customers vs adminis
 **Client Components → API Routes → Prisma → SQLite**
 
 All database operations go through API routes in `app/api/`:
-- `app/api/products/route.ts` - Product CRUD with pagination
+- `app/api/products/route.ts` - Product CRUD with pagination and search
+- `app/api/products/[id]/route.ts` - Product detail with reviews and ratings
 - `app/api/orders/route.ts` - Order creation with coupon logic
-- `app/api/cart/route.ts` - Cart management
-- `app/api/cart/[id]/route.ts` - Individual cart item operations
+- `app/api/cart/route.ts` - Cart management (GET, POST, DELETE)
+- `app/api/cart/[id]/route.ts` - Individual cart item operations (PATCH, DELETE)
+- `app/api/banners/route.ts` - Banner CRUD with active filtering
+- `app/api/banners/[id]/route.ts` - Single banner operations
+- `app/api/categories/route.ts` - Category listing with product counts
 - `app/api/upload/route.ts` - Image upload (POST) and deletion (DELETE)
 
 API routes use the singleton Prisma client from `lib/prisma.ts`. Never instantiate Prisma directly in components.
@@ -111,16 +115,123 @@ images: [{ url: string, isPrimary?: boolean }]
 
 For production, migrate to cloud storage (Cloudinary/Aliyun OSS) by replacing `/api/upload` implementation.
 
-### Price Calculations
+### Banner System (✅ Implemented)
 
-The `app/api/orders/route.ts` contains the core coupon discount logic:
-- FIXED coupons: Direct subtraction
+Homepage banners with auto-rotation carousel managed through admin interface.
+
+**Banner API** (`/api/banners`):
+- **GET**: Query param `?activeOnly=true` to fetch only active banners, ordered by sortOrder
+- **POST**: Create new banner with title, image, optional link, sortOrder, and isActive status
+- **PATCH** (`/api/banners/[id]`): Update banner details
+- **DELETE** (`/api/banners/[id]`): Remove banner
+
+**Admin Interface** (`app/admin/banners/page.tsx`):
+- Upload banner images using same upload system as products
+- Set sortOrder to control display sequence (lower numbers appear first)
+- Toggle isActive to show/hide banners without deleting
+- Optional link field to make banners clickable
+
+**Homepage Carousel** (`app/(shop)/page.tsx`):
+- Auto-rotates every 5 seconds when multiple banners exist
+- Manual navigation with left/right arrows (visible on hover)
+- Indicator dots showing current position
+- Smooth fade transitions between slides
+- Responsive height (h-64 mobile, h-96 desktop)
+- Falls back to gradient hero section if no banners exist
+
+### Product Search (✅ Implemented)
+
+Full-text search across product titles and descriptions.
+
+**Search API** (`/api/products`):
+- Query param `?search={keyword}` performs case-insensitive search
+- Uses Prisma OR clause: searches both title AND description fields
+- Returns paginated results with same format as regular product listing
+- Can combine with categoryId filter for category-specific search
+
+**Search Modal** (`app/(shop)/layout.tsx`):
+- Click search icon in header to open modal
+- Hot search tags for common categories
+- Redirects to `/search?q={keyword}` on submit
+- Modal backdrop closes on click outside
+
+**Search Results Page** (`app/(shop)/search/page.tsx`):
+- Displays search query and result count
+- Same product grid layout as main products page
+- Pagination support for large result sets
+- Empty state with link to browse all products if no results
+- "Return to home" link for easy navigation
+
+### Product Detail Page (✅ Implemented)
+
+Complete product viewing experience with image carousel and add-to-cart functionality.
+
+**Product Detail API** (`/api/products/[id]`):
+- Fetches complete product data including images, category, and reviews
+- Calculates average rating from reviews
+- Returns only ACTIVE products to prevent viewing delisted items
+- Includes latest 10 reviews with user information
+
+**Product Detail Page** (`app/(shop)/products/[id]/page.tsx`):
+- **Image Gallery**: Multi-image carousel with thumbnails, left/right arrows, and indicator dots
+- **Product Info**: Title, description, price (with original price strikethrough), rating, and sales count
+- **Stock Status**: Real-time stock display with out-of-stock handling
+- **Quantity Selector**: +/- controls with stock limit validation
+- **Action Buttons**: "Add to Cart" and "Buy Now" (redirects to cart after adding)
+- **Reviews Section**: User reviews with star ratings and timestamps
+- **Breadcrumb Navigation**: Home → Products → Category → Product
+
+**Key Features**:
+- Hover to show left/right navigation arrows on image carousel
+- Click thumbnails to jump to specific images
+- Responsive design (mobile: stacked layout, desktop: two-column)
+- Loading state with skeleton UI
+- 404 handling for non-existent or delisted products
+
+### Shopping Cart (✅ Implemented)
+
+Full-featured shopping cart with real-time updates and checkout flow.
+
+**Cart API**:
+- **GET `/api/cart`**: Fetch all cart items for current user with product details
+- **POST `/api/cart`**: Add product to cart (merges quantities if already exists)
+- **PATCH `/api/cart/[id]`**: Update item quantity with stock validation
+- **DELETE `/api/cart/[id]`**: Remove individual item from cart
+
+**Cart Page** (`app/(shop)/cart/page.tsx`):
+- **Item Management**: Checkbox selection, quantity adjustment, and delete
+- **Real-time Calculations**: Total price, savings, and item count for selected items
+- **Stock Validation**: Prevents quantity exceeding available stock
+- **Select All**: Toggle all items with synchronized checkbox states
+- **Empty State**: Friendly message with "Go Shopping" button
+- **Recommended Products**: "You May Like" section at bottom
+- **Fixed Checkout Bar**: Always visible with total and checkout button
+
+**Integration Flow**:
+1. Product Detail → Add to Cart → POST `/api/cart`
+2. Cart Page → GET `/api/cart` → Display items
+3. Modify Quantity → PATCH `/api/cart/[id]` → Update state
+4. Delete Item → DELETE `/api/cart/[id]` → Remove from list
+5. Checkout → Redirect to `/checkout` with selected items
+
+### Currency and Price Display
+
+**All prices use Euro (€) throughout the application.**
+
+The `lib/utils.ts` provides core pricing utilities:
+- `formatPrice(price: number)`: Returns formatted string like "€99.99"
+- `calcDiscountPercent(originalPrice, currentPrice)`: Calculates discount percentage
+
+**Important**: When displaying prices in components, use `€` symbol directly or import `formatPrice` from `lib/utils.ts`. Never use ¥ (Chinese Yuan) symbol.
+
+**Discount Calculations** (`app/api/orders/route.ts`):
+- FIXED coupons: Direct subtraction from total
 - PERCENT coupons: Percentage off with optional max discount cap
 
 When modifying pricing, ensure consistency between:
 - `lib/utils.ts` helpers (formatPrice, calcDiscountPercent)
 - API route calculations
-- Client-side display logic
+- Client-side display logic (always use €)
 
 ## Common Patterns
 
@@ -182,20 +293,30 @@ Optional (for future features):
 **✅ Completed Features**:
 - Image upload system with local storage
 - Product listing page with pagination, category filtering, price/sales sorting
-- Admin product creation with multi-image upload
+- Product detail page with image carousel, reviews, and add-to-cart
+- Shopping cart with real-time updates, quantity management, and checkout flow
+- Admin product creation and editing with multi-image upload
+- Banner management system with admin interface and homepage carousel
+- Product search functionality with keyword matching on title and description
+- Search modal in header with hot search tags
+- Category management with full CRUD operations
 - Database seeding with 4 categories and sample products
 - Custom Tailwind utility classes for consistent styling
+- Euro (€) currency display throughout the application
 
 **🚧 Placeholders / Not Yet Implemented**:
-- Authentication: NextAuth.js installed but not configured
+- Authentication: NextAuth.js installed but not configured (uses 'user-id-placeholder')
 - Payment integration: No processor connected
+- Checkout process: Page exists but needs order creation logic
 - Product specifications: Schema exists, not fully integrated in UI
-- Search functionality: Search button exists but not functional
 - User registration/login: UI only, no backend
+- Order management and logistics: Skipped for now
+- User reviews: Schema exists, not yet creatable by users
 
-**⚠️ Known Discrepancies**:
+**⚠️ Known Issues and Discrepancies**:
 - README mentions PostgreSQL, actual implementation uses SQLite
-- Some UI pages reference features not yet in API (e.g., product edit)
+- All cart/order operations use hardcoded `'user-id-placeholder'` until authentication is implemented
+- External placeholder images (via.placeholder.com) may fail to load in some environments
 
 ## Database Seeding
 
@@ -230,7 +351,22 @@ The bottom navigation (`app/(shop)/layout.tsx`) is hidden on desktop (`md:hidden
 - **Utility functions**: `lib/utils.ts` (formatPrice, formatDate, generateOrderNo, calcDiscountPercent)
 - **Image upload component**: `components/ImageUpload.tsx`
 - **Image upload API**: `app/api/upload/route.ts`
-- **Product API**: `app/api/products/route.ts`
+- **Product APIs**: `app/api/products/route.ts` and `app/api/products/[id]/route.ts`
+- **Cart APIs**: `app/api/cart/route.ts` and `app/api/cart/[id]/route.ts`
+- **Banner APIs**: `app/api/banners/route.ts` and `app/api/banners/[id]/route.ts`
 - **Database schema**: `prisma/schema.prisma`
 - **Database file**: `prisma/dev.db` (SQLite, gitignored)
 - **Seed data**: `prisma/seed.ts`
+
+## Complete Shopping Flow
+
+The core e-commerce flow is fully implemented:
+
+1. **Browse Products** → `/products` or `/` (homepage with featured products)
+2. **Search Products** → Click search icon → Enter keywords → `/search?q=keyword`
+3. **View Product** → Click product card → `/products/[id]` (detail page with images and reviews)
+4. **Add to Cart** → Click "Add to Cart" button → POST `/api/cart`
+5. **View Cart** → `/cart` → Manage quantities, select items
+6. **Checkout** → Click "Checkout" button → `/checkout` (ready for order creation logic)
+
+All steps use real database operations except checkout (order creation pending).

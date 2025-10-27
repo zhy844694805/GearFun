@@ -1,301 +1,493 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ShoppingCart, Heart, Share2, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import Image from 'next/image';
+import { ShoppingCart, Heart, Star, ChevronLeft, ChevronRight, Minus, Plus, Share2 } from 'lucide-react';
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const [selectedImage, setSelectedImage] = useState(0);
+interface ProductImage {
+  id: string;
+  url: string;
+  sortOrder: number;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface Review {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    avatar: string | null;
+  };
+}
+
+interface Product {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  originalPrice: number | null;
+  stock: number;
+  sold: number;
+  status: string;
+  images: ProductImage[];
+  category: Category;
+  reviews: Review[];
+  avgRating: number;
+  reviewCount: number;
+  createdAt: string;
+}
+
+export default function ProductDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const productId = params.id as string;
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [selectedSpec, setSelectedSpec] = useState<string>('');
+  const [addingToCart, setAddingToCart] = useState(false);
 
-  // 模拟商品数据
-  const product = {
-    id: params.id,
-    title: '潮流汽车挂件 创意后视镜装饰',
-    price: 99.00,
-    originalPrice: 199.00,
-    stock: 156,
-    sold: 1280,
-    rating: 4.8,
-    reviewCount: 342,
-    images: [
-      'https://via.placeholder.com/600x600/FF6B6B/ffffff?text=Image+1',
-      'https://via.placeholder.com/600x600/4ECDC4/ffffff?text=Image+2',
-      'https://via.placeholder.com/600x600/45B7D1/ffffff?text=Image+3',
-      'https://via.placeholder.com/600x600/FFA07A/ffffff?text=Image+4',
-    ],
-    specs: [
-      { name: '黑色', value: 'black' },
-      { name: '白色', value: 'white' },
-      { name: '红色', value: 'red' },
-    ],
-    description: '高品质汽车挂件，精选材质，做工精良。适合各类车型，为您的爱车增添一份独特魅力。',
-    details: [
-      '材质：优质合金+水晶',
-      '尺寸：8cm x 3cm',
-      '重量：约50g',
-      '适用：通用车型',
-      '包装：精美礼盒装',
-    ],
+  useEffect(() => {
+    fetchProduct();
+  }, [productId]);
+
+  const fetchProduct = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/products/${productId}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          alert('商品不存在或已下架');
+          router.push('/products');
+          return;
+        }
+        throw new Error('获取商品详情失败');
+      }
+
+      const data = await response.json();
+      setProduct(data);
+    } catch (error) {
+      console.error('获取商品详情失败:', error);
+      alert('获取商品详情失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const reviews = [
-    {
-      id: 1,
-      user: '张**',
-      avatar: '👤',
-      rating: 5,
-      date: '2024-01-15',
-      content: '质量非常好，做工精细，很有质感！物流也快，五星好评！',
-      images: ['https://via.placeholder.com/100/FF6B6B', 'https://via.placeholder.com/100/4ECDC4'],
-    },
-    {
-      id: 2,
-      user: '李**',
-      avatar: '👤',
-      rating: 5,
-      date: '2024-01-12',
-      content: '颜值超高，挂在车上很好看，朋友都问哪买的~',
-      images: [],
-    },
-    {
-      id: 3,
-      user: '王**',
-      avatar: '👤',
-      rating: 4,
-      date: '2024-01-10',
-      content: '整体不错，就是稍微有点小，不过也挺精致的。',
-      images: ['https://via.placeholder.com/100/45B7D1'],
-    },
-  ];
+  const handleAddToCart = async () => {
+    if (!product) return;
 
-  const handleAddToCart = () => {
-    if (!selectedSpec) {
-      alert('请选择规格');
+    if (product.stock === 0) {
+      alert('商品已售罄');
       return;
     }
-    alert(`已添加 ${quantity} 件到购物车`);
+
+    try {
+      setAddingToCart(true);
+      const response = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          quantity,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '加入购物车失败');
+      }
+
+      alert('已加入购物车！');
+    } catch (error: any) {
+      alert(error.message || '加入购物车失败');
+    } finally {
+      setAddingToCart(false);
+    }
   };
 
-  const handleBuyNow = () => {
-    if (!selectedSpec) {
-      alert('请选择规格');
-      return;
-    }
-    alert('跳转到结算页面');
+  const handleBuyNow = async () => {
+    await handleAddToCart();
+    router.push('/cart');
   };
+
+  const nextImage = () => {
+    if (!product) return;
+    setCurrentImageIndex((prev) => (prev + 1) % product.images.length);
+  };
+
+  const prevImage = () => {
+    if (!product) return;
+    setCurrentImageIndex((prev) => (prev - 1 + product.images.length) % product.images.length);
+  };
+
+  const incrementQuantity = () => {
+    if (!product) return;
+    if (quantity < product.stock) {
+      setQuantity(quantity + 1);
+    }
+  };
+
+  const decrementQuantity = () => {
+    if (quantity > 1) {
+      setQuantity(quantity - 1);
+    }
+  };
+
+  const calculateDiscount = () => {
+    if (!product || !product.originalPrice || product.originalPrice <= product.price) return 0;
+    return Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
+  };
+
+  if (loading) {
+    return (
+      <div className="container-custom py-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="aspect-square bg-gray-200 rounded-lg"></div>
+            <div className="space-y-4">
+              <div className="h-8 bg-gray-200 rounded"></div>
+              <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-10 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="container-custom py-20 text-center">
+        <p className="text-gray-500 mb-4">商品不存在</p>
+        <Link href="/products" className="text-primary-600 hover:underline">
+          返回商品列表
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* 商品图片轮播 */}
-      <div className="relative bg-white">
-        <div className="aspect-square max-w-2xl mx-auto relative overflow-hidden">
-          <img
-            src={product.images[selectedImage]}
-            alt={product.title}
-            className="w-full h-full object-cover"
-          />
-
-          {/* 左右切换按钮 */}
-          <button
-            onClick={() => setSelectedImage((prev) => (prev - 1 + product.images.length) % product.images.length)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow-lg"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <button
-            onClick={() => setSelectedImage((prev) => (prev + 1) % product.images.length)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full shadow-lg"
-          >
-            <ChevronRight size={24} />
-          </button>
-
-          {/* 图片指示器 */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-            {product.images.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setSelectedImage(index)}
-                className={`w-2 h-2 rounded-full transition ${
-                  selectedImage === index ? 'bg-primary-600 w-6' : 'bg-white/60'
-                }`}
-              />
-            ))}
-          </div>
+    <div className="bg-gray-50 min-h-screen">
+      <div className="container-custom py-6">
+        {/* 面包屑导航 */}
+        <div className="flex items-center gap-2 text-sm text-gray-600 mb-6">
+          <Link href="/" className="hover:text-primary-600">首页</Link>
+          <span>/</span>
+          <Link href="/products" className="hover:text-primary-600">商品</Link>
+          <span>/</span>
+          <Link href={`/products?category=${product.category.id}`} className="hover:text-primary-600">
+            {product.category.name}
+          </Link>
+          <span>/</span>
+          <span className="text-gray-900">{product.title}</span>
         </div>
 
-        {/* 缩略图 */}
-        <div className="container-custom py-4">
-          <div className="flex gap-2 overflow-x-auto">
-            {product.images.map((image, index) => (
-              <button
-                key={index}
-                onClick={() => setSelectedImage(index)}
-                className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition ${
-                  selectedImage === index ? 'border-primary-600' : 'border-gray-200'
-                }`}
-              >
-                <img src={image} alt={`缩略图 ${index + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        {/* 主要内容区 */}
+        <div className="grid md:grid-cols-2 gap-8 mb-8">
+          {/* 左侧：图片展示 */}
+          <div className="space-y-4">
+            {/* 主图 */}
+            <div className="relative aspect-square bg-white rounded-lg overflow-hidden group">
+              {product.images.length > 0 ? (
+                <>
+                  <Image
+                    src={product.images[currentImageIndex].url}
+                    alt={product.title}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
 
-      <div className="container-custom pb-24">
-        {/* 商品基本信息 */}
-        <div className="py-6 border-b">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold mb-2">{product.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <Star size={16} className="fill-yellow-400 text-yellow-400" />
-                  <span>{product.rating}</span>
+                  {/* 左右切换按钮 */}
+                  {product.images.length > 1 && (
+                    <>
+                      <button
+                        onClick={prevImage}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                      <button
+                        onClick={nextImage}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                    </>
+                  )}
+
+                  {/* 图片指示器 */}
+                  {product.images.length > 1 && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                      {product.images.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            index === currentImageIndex
+                              ? 'bg-white w-6'
+                              : 'bg-white bg-opacity-50'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full text-6xl">
+                  📦
                 </div>
-                <span>{product.reviewCount} 评价</span>
-                <span>已售 {product.sold}+</span>
+              )}
+            </div>
+
+            {/* 缩略图 */}
+            {product.images.length > 1 && (
+              <div className="grid grid-cols-5 gap-2">
+                {product.images.map((image, index) => (
+                  <button
+                    key={image.id}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`relative aspect-square bg-white rounded-lg overflow-hidden border-2 transition ${
+                      index === currentImageIndex
+                        ? 'border-primary-600'
+                        : 'border-transparent hover:border-gray-300'
+                    }`}
+                  >
+                    <Image
+                      src={image.url}
+                      alt={`${product.title} - ${index + 1}`}
+                      fill
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 右侧：商品信息 */}
+          <div className="space-y-6">
+            {/* 商品标题 */}
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold mb-2">{product.title}</h1>
+              <p className="text-gray-600">{product.description}</p>
+            </div>
+
+            {/* 评分和销量 */}
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-1">
+                <Star className="text-yellow-400 fill-yellow-400" size={16} />
+                <span className="font-semibold">{product.avgRating.toFixed(1)}</span>
+                <span className="text-gray-500">({product.reviewCount}条评价)</span>
+              </div>
+              <div className="text-gray-500">
+                已售 {product.sold}+
               </div>
             </div>
-            <div className="flex gap-2">
-              <button className="p-2 hover:bg-gray-100 rounded-full">
-                <Share2 size={20} />
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-full">
-                <Heart size={20} />
-              </button>
-            </div>
-          </div>
 
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-primary-600">¥{product.price}</span>
-            {product.originalPrice && (
-              <span className="text-gray-400 line-through">¥{product.originalPrice}</span>
-            )}
-            <span className="bg-primary-100 text-primary-600 text-sm px-2 py-0.5 rounded">
-              {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
-            </span>
-          </div>
-        </div>
-
-        {/* 规格选择 */}
-        <div className="py-6 border-b">
-          <h3 className="font-semibold mb-4">选择颜色</h3>
-          <div className="flex gap-3">
-            {product.specs.map((spec) => (
-              <button
-                key={spec.value}
-                onClick={() => setSelectedSpec(spec.value)}
-                className={`px-6 py-2 rounded-lg border-2 transition ${
-                  selectedSpec === spec.value
-                    ? 'border-primary-600 bg-primary-50 text-primary-600'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {spec.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 数量选择 */}
-        <div className="py-6 border-b">
-          <h3 className="font-semibold mb-4">购买数量</h3>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center border rounded-lg">
-              <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="px-4 py-2 hover:bg-gray-100"
-              >
-                -
-              </button>
-              <span className="px-6 py-2 border-x">{quantity}</span>
-              <button
-                onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                className="px-4 py-2 hover:bg-gray-100"
-              >
-                +
-              </button>
-            </div>
-            <span className="text-sm text-gray-600">库存 {product.stock} 件</span>
-          </div>
-        </div>
-
-        {/* 商品详情 */}
-        <div className="py-6 border-b">
-          <h3 className="font-semibold mb-4">商品详情</h3>
-          <p className="text-gray-700 mb-4">{product.description}</p>
-          <ul className="space-y-2">
-            {product.details.map((detail, index) => (
-              <li key={index} className="text-gray-600 flex items-start">
-                <span className="text-primary-600 mr-2">•</span>
-                {detail}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* 用户评价 */}
-        <div className="py-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-lg">用户评价 ({product.reviewCount})</h3>
-            <Link href={`/products/${params.id}/reviews`} className="text-primary-600 text-sm">
-              查看全部 &gt;
-            </Link>
-          </div>
-
-          <div className="space-y-4">
-            {reviews.map((review) => (
-              <div key={review.id} className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{review.avatar}</span>
-                    <div>
-                      <p className="font-medium">{review.user}</p>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={14}
-                            className={i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-sm text-gray-500">{review.date}</span>
-                </div>
-                <p className="text-gray-700 mb-2">{review.content}</p>
-                {review.images.length > 0 && (
-                  <div className="flex gap-2">
-                    {review.images.map((img, i) => (
-                      <img key={i} src={img} alt="" className="w-20 h-20 rounded object-cover" />
-                    ))}
-                  </div>
+            {/* 价格 */}
+            <div className="bg-gradient-to-r from-primary-50 to-pink-50 p-6 rounded-lg">
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-bold text-primary-600">
+                  €{product.price.toFixed(2)}
+                </span>
+                {product.originalPrice && product.originalPrice > product.price && (
+                  <>
+                    <span className="text-xl text-gray-400 line-through">
+                      €{product.originalPrice.toFixed(2)}
+                    </span>
+                    <span className="bg-primary-600 text-white text-sm px-2 py-1 rounded">
+                      省{calculateDiscount()}%
+                    </span>
+                  </>
                 )}
               </div>
-            ))}
+            </div>
+
+            {/* 库存状态 */}
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">库存：</span>
+              <span className={`font-semibold ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {product.stock > 0 ? `${product.stock} 件` : '已售罄'}
+              </span>
+            </div>
+
+            {/* 数量选择 */}
+            {product.stock > 0 && (
+              <div className="flex items-center gap-4">
+                <span className="text-gray-600">数量：</span>
+                <div className="flex items-center border border-gray-300 rounded-lg">
+                  <button
+                    onClick={decrementQuantity}
+                    disabled={quantity <= 1}
+                    className="px-4 py-2 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="text"
+                    value={quantity}
+                    readOnly
+                    className="w-16 text-center border-x border-gray-300 py-2"
+                  />
+                  <button
+                    onClick={incrementQuantity}
+                    disabled={quantity >= product.stock}
+                    className="px-4 py-2 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 操作按钮 */}
+            <div className="flex gap-4">
+              {product.stock > 0 ? (
+                <>
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={addingToCart}
+                    className="flex-1 flex items-center justify-center gap-2 bg-primary-100 text-primary-600 py-4 rounded-lg font-semibold hover:bg-primary-200 transition disabled:opacity-50"
+                  >
+                    <ShoppingCart size={20} />
+                    {addingToCart ? '加入中...' : '加入购物车'}
+                  </button>
+                  <button
+                    onClick={handleBuyNow}
+                    className="flex-1 bg-primary-600 text-white py-4 rounded-lg font-semibold hover:bg-primary-700 transition"
+                  >
+                    立即购买
+                  </button>
+                </>
+              ) : (
+                <button
+                  disabled
+                  className="flex-1 bg-gray-300 text-gray-500 py-4 rounded-lg font-semibold cursor-not-allowed"
+                >
+                  已售罄
+                </button>
+              )}
+            </div>
+
+            {/* 额外操作 */}
+            <div className="flex gap-4 pt-4 border-t">
+              <button className="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition">
+                <Heart size={20} />
+                <span>收藏</span>
+              </button>
+              <button className="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition">
+                <Share2 size={20} />
+                <span>分享</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 底部操作栏 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-30">
-        <div className="container-custom flex gap-4">
-          <button
-            onClick={handleAddToCart}
-            className="flex-1 bg-primary-100 text-primary-600 py-3 rounded-lg font-semibold hover:bg-primary-200 transition flex items-center justify-center gap-2"
-          >
-            <ShoppingCart size={20} />
-            加入购物车
-          </button>
-          <button
-            onClick={handleBuyNow}
-            className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition"
-          >
-            立即购买
-          </button>
+        {/* 商品详情和评价 */}
+        <div className="bg-white rounded-lg shadow-sm">
+          <div className="border-b">
+            <div className="flex">
+              <button className="px-6 py-4 font-semibold text-primary-600 border-b-2 border-primary-600">
+                商品详情
+              </button>
+              <button className="px-6 py-4 text-gray-600">
+                用户评价 ({product.reviewCount})
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {/* 商品详情 */}
+            <div className="prose max-w-none">
+              <h3 className="text-xl font-bold mb-4">商品描述</h3>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {product.description || '暂无详细描述'}
+              </p>
+
+              <h3 className="text-xl font-bold mt-8 mb-4">商品信息</h3>
+              <table className="w-full">
+                <tbody>
+                  <tr className="border-b">
+                    <td className="py-3 text-gray-600 w-32">商品分类</td>
+                    <td className="py-3">{product.category.name}</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-3 text-gray-600">商品编号</td>
+                    <td className="py-3 font-mono text-sm">{product.id}</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-3 text-gray-600">上架时间</td>
+                    <td className="py-3">{new Date(product.createdAt).toLocaleDateString('zh-CN')}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 评价列表 */}
+            {product.reviews.length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-xl font-bold mb-4">用户评价</h3>
+                <div className="space-y-4">
+                  {product.reviews.map((review) => (
+                    <div key={review.id} className="border-b pb-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                          {review.user.avatar ? (
+                            <Image
+                              src={review.user.avatar}
+                              alt={review.user.name}
+                              width={40}
+                              height={40}
+                              className="rounded-full"
+                            />
+                          ) : (
+                            <span className="text-gray-500">
+                              {review.user.name.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold">{review.user.name}</div>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                className={
+                                  i < review.rating
+                                    ? 'text-yellow-400 fill-yellow-400'
+                                    : 'text-gray-300'
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {new Date(review.createdAt).toLocaleDateString('zh-CN')}
+                        </span>
+                      </div>
+                      <p className="text-gray-700 ml-13">{review.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

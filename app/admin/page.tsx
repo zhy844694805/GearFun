@@ -4,7 +4,7 @@ export default function AdminDashboard() {
   const stats = [
     {
       name: '今日销售额',
-      value: '¥12,345',
+      value: '€12,345',
       change: '+12.5%',
       icon: DollarSign,
       color: 'text-green-600 bg-green-100',
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
                     用户{i}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    ¥299.00
+                    €299.00
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">

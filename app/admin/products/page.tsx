@@ -196,7 +196,7 @@ export default function ProductsPage() {
                     {product.category.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    ¥{product.price.toFixed(2)}
+                    €{product.price.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={product.stock < 10 ? 'text-red-600 font-semibold' : ''}>

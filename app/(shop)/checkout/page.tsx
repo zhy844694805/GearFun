@@ -189,7 +189,7 @@ export default function CheckoutPage() {
                     <p className="text-sm text-gray-500 mb-1">规格: {item.specs}</p>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-primary-600 font-semibold">¥{item.price.toFixed(2)}</span>
+                    <span className="text-primary-600 font-semibold">€{item.price.toFixed(2)}</span>
                     <span className="text-gray-600">x{item.quantity}</span>
                   </div>
                 </div>
@@ -205,7 +205,7 @@ export default function CheckoutPage() {
               <Tag className="text-primary-600" size={20} />
               <span className="font-medium">优惠券</span>
               {selectedCoupon && (
-                <span className="text-sm text-primary-600">已优惠 ¥{couponDiscount}</span>
+                <span className="text-sm text-primary-600">已优惠 €{couponDiscount}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -253,21 +253,21 @@ export default function CheckoutPage() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">商品总价</span>
-              <span>¥{productTotal.toFixed(2)}</span>
+              <span>€{productTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">运费</span>
-              <span>{shipping === 0 ? '免运费' : `¥${shipping.toFixed(2)}`}</span>
+              <span>{shipping === 0 ? '免运费' : `€${shipping.toFixed(2)}`}</span>
             </div>
             {couponDiscount > 0 && (
               <div className="flex justify-between text-primary-600">
                 <span>优惠券</span>
-                <span>-¥{couponDiscount.toFixed(2)}</span>
+                <span>-€{couponDiscount.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-lg font-bold pt-3 border-t">
               <span>实付款</span>
-              <span className="text-primary-600">¥{finalTotal.toFixed(2)}</span>
+              <span className="text-primary-600">€{finalTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -280,7 +280,7 @@ export default function CheckoutPage() {
             <div className="flex items-baseline gap-2">
               <span className="text-sm text-gray-600">应付:</span>
               <span className="text-2xl font-bold text-primary-600">
-                ¥{finalTotal.toFixed(2)}
+                €{finalTotal.toFixed(2)}
               </span>
             </div>
             <button
